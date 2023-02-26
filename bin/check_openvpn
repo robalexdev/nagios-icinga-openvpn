@@ -191,6 +191,11 @@ def readkey(path):
     key = binascii.unhexlify(key)
     return key
 
+def readkeyenv(variable):
+    key = os.environ[variable]
+    key = binascii.unhexlify(key)
+    return key
+
 def optionsparser(argv=None):
     parser = argparse.ArgumentParser()
     parser.add_argument('-p', '--port', help='set port number (default is %(default)d)', type=int, default=1194)
@@ -201,6 +206,7 @@ def optionsparser(argv=None):
     parser.add_argument('--digest-key-client', help='set client HMAC key')
     parser.add_argument('--digest-key-server', help='set server HMAC key for packet validation')
     parser.add_argument('--tls-auth', help='set tls-auth file')
+    parser.add_argument('--tls-auth-env', help='set tls-auth from environment')
     # TODO: direction argument (normal, inverse)
     parser.add_argument('--tls-auth-inverse', help='set tls-auth file direction to inverse (1)', action='store_true')
     parser.add_argument('--retrycount', help='number of udp retries before giving up (default is %(default)d)', type=int, default=3)
@@ -215,8 +221,8 @@ def main(argv=None):
         critical('digest size must be positive')
     if args.retrycount < 1:
         critical('retry count must be positive')
-    if args.tls_auth and (args.digest_key_client or args.digest_key_server):
-        critical('--tls-auth cannot go with --digest-key')
+    if (args.tls_auth or args.tls_auth_env) and (args.digest_key_client or args.digest_key_server):
+        critical('--tls-auth[-env] cannot go with --digest-key')
 
     client_key = binascii.unhexlify(args.digest_key_client) if args.digest_key_client else None
     server_key = binascii.unhexlify(args.digest_key_server) if args.digest_key_server else None
@@ -236,6 +242,11 @@ def main(argv=None):
         # see openvpn source code "src/openvpn/crypto.h", "src/openvpn/crypto.c" and "src/openvpn/crypto_backend.h"
         # 64 byte cipher direction 0, 64 byte hmac direction 0, 64 byte cipher direction 1, 64 byte hmac direction 1 (=> 2048 bit)
         key = readkey(args.tls_auth)
+
+    if args.tls_auth_env:
+        key = readkeyenv(args.tls_auth_env)
+
+    if args.tls_auth or args.tls_auth_env:
         if key == None: return critical('cannot read tls auth file')
         index_start = MAX_CIPHER_KEY_LENGTH + MAX_HMAC_KEY_LENGTH + MAX_CIPHER_KEY_LENGTH
         index_end = index_start + MAX_HMAC_KEY_LENGTH
